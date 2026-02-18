@@ -92,7 +92,7 @@ def build_agent(cdp_endpoint: str = "http://localhost:9222") -> LoopAgent:
 
     task_executor = Agent(
         name="task_executor",
-        model="gemini-2.5-flash",
+        model="openai/gpt-5.2",
         instruction=TASK_INSTRUCTION,
         tools=[playwright_toolset, chrome_devtools_toolset, auth_tool, complete_tool],
     )
