@@ -13,6 +13,10 @@ Key features:
 - **Automatic retry** -- LoopAgent wraps the executor with up to 3 attempts per task
 - **Per-task isolation** -- failures on one task don't block the rest
 
+## Architecture
+
+![Architecture](architecture.png)
+
 ## Setup
 
 Requires Python 3.13+, Node.js (for `npx`), and Chrome installed.
