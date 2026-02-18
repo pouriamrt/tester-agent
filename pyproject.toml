@@ -1,0 +1,18 @@
+[project]
+name = "tester-agent"
+version = "0.1.0"
+description = "Web task automation agent powered by Google ADK with Playwright and Chrome DevTools MCP"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "google-adk>=1.25.0",
+    "playwright>=1.58.0",
+    "openpyxl>=3.1.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+]
