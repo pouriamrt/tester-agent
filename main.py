@@ -2,9 +2,9 @@
 """Orchestrator: reads tasks from Excel, runs agent per task, saves results."""
 
 import asyncio
-import base64
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -84,30 +84,53 @@ def launch_chrome(port: int) -> subprocess.Popen:
     sys.exit(1)
 
 
-def save_screenshot(task_id: str, data: bytes) -> str:
-    """Save screenshot bytes to pics/ and return the relative path."""
+PROJECT_DIR = Path(__file__).resolve().parent
+
+
+def snapshot_png_files() -> dict[Path, float]:
+    """Return a dict of .png files -> mtime currently in the project directory."""
+    return {p: p.stat().st_mtime for p in PROJECT_DIR.glob("*.png")}
+
+
+def collect_screenshots(task_id: str, before: dict[Path, float]) -> str:
+    """Move new or modified .png files from project root to pics/, return comma-separated paths."""
     PICS_DIR.mkdir(exist_ok=True)
+    after = snapshot_png_files()
+
+    changed = []
+    for p, mtime in after.items():
+        if p not in before or mtime > before[p]:
+            changed.append(p)
+
+    if not changed:
+        log.warning("No new screenshot files found for task %s", task_id)
+        return ""
+
+    saved = []
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    filename = f"{task_id}_{timestamp}.png"
-    path = PICS_DIR / filename
-    path.write_bytes(data)
-    log.info("Screenshot saved: %s", path)
-    return str(path)
+    for i, src in enumerate(sorted(changed)):
+        suffix = f"_{i}" if len(changed) > 1 else ""
+        dest_name = f"{task_id}_{timestamp}{suffix}.png"
+        dest = PICS_DIR / dest_name
+        shutil.move(str(src), str(dest))
+        log.info("Screenshot moved: %s -> %s", src.name, dest)
+        saved.append(str(dest))
+
+    return ", ".join(saved)
 
 
 async def run_task(
     runner: Runner,
     task_id: str,
     prompt: str,
-) -> tuple[str, str, str]:
-    """Run a single task through the agent. Returns (status, screenshot_path, error)."""
+) -> tuple[str, str]:
+    """Run a single task through the agent. Returns (status, error)."""
     session = await runner.session_service.create_session(
         app_name=APP_NAME,
         user_id="human",
         session_id=f"task-{task_id}",
     )
 
-    screenshot_path = ""
     status = "failed"
     error = ""
     last_function_call_id = None
@@ -124,18 +147,6 @@ async def run_task(
             session_id=session.id,
             new_message=message,
         ):
-            # Check for screenshot data in function responses
-            for fr in event.get_function_responses():
-                if fr.name == "take_screenshot" and fr.response:
-                    img_data = fr.response.get("result", "")
-                    if img_data:
-                        try:
-                            screenshot_path = save_screenshot(
-                                task_id, base64.b64decode(img_data)
-                            )
-                        except Exception as e:
-                            log.warning("Failed to decode screenshot: %s", e)
-
             # Check for mark_task_complete
             for fr in event.get_function_responses():
                 if fr.name == "mark_task_complete" and fr.response:
@@ -183,7 +194,7 @@ async def run_task(
         # No pause -- agent finished (or loop exhausted)
         break
 
-    return status, screenshot_path, error
+    return status, error
 
 
 def format_task_prompt(task) -> str:
@@ -229,15 +240,17 @@ async def async_main():
             results = []
             for task in tasks:
                 log.info("--- Task %s: %s ---", task.task_id, task.url)
+                png_before = snapshot_png_files()
                 try:
-                    status, screenshot_path, error = await run_task(
+                    status, error = await run_task(
                         runner, task.task_id, format_task_prompt(task)
                     )
                 except Exception as e:
                     log.exception("Task %s failed with exception", task.task_id)
                     status = "failed"
-                    screenshot_path = ""
                     error = str(e)
+
+                screenshot_path = collect_screenshots(task.task_id, png_before)
 
                 update_task_result(xlsx_path, task.task_id, screenshot_path, status, error)
                 results.append((task.task_id, status, error))
