@@ -8,6 +8,7 @@ import os
 import subprocess
 import sys
 import time
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -65,8 +66,22 @@ def launch_chrome(port: int) -> subprocess.Popen:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-    time.sleep(3)  # Give Chrome time to start
-    return proc
+
+    # Poll CDP endpoint until Chrome is ready
+    for attempt in range(15):
+        if proc.poll() is not None:
+            log.error("Chrome exited with code %d", proc.returncode)
+            sys.exit(1)
+        try:
+            urllib.request.urlopen(f"http://localhost:{port}/json/version", timeout=2)
+            log.info("Chrome CDP endpoint ready on port %d", port)
+            return proc
+        except Exception:
+            time.sleep(1)
+
+    log.error("Chrome did not become ready on port %d after 15 seconds", port)
+    proc.terminate()
+    sys.exit(1)
 
 
 def save_screenshot(task_id: str, data: bytes) -> str:
@@ -101,14 +116,11 @@ async def run_task(
     message = types.Content(role="user", parts=[types.Part(text=prompt)])
 
     while True:
-        events = []
         async for event in runner.run_async(
             user_id="human",
             session_id=session.id,
             new_message=message,
         ):
-            events.append(event)
-
             # Check for screenshot data in function responses
             for fr in event.get_function_responses():
                 if fr.name == "take_screenshot" and fr.response:
@@ -139,7 +151,7 @@ async def run_task(
                         print(f"AUTHENTICATION REQUIRED: {desc}")
                         print("Complete authentication in the browser, then press Enter.")
                         print(f"{'='*60}")
-                        input()  # Block until human presses Enter
+                        await asyncio.to_thread(input)
                 break  # Exit event loop to resume
 
         # If we paused for auth, resume
@@ -205,40 +217,46 @@ async def async_main():
         session_service = InMemorySessionService()
         runner = Runner(app=app, session_service=session_service)
 
-        results = []
-        for task in tasks:
-            log.info("--- Task %s: %s ---", task.task_id, task.url)
-            try:
-                status, screenshot_path, error = await run_task(
-                    runner, task.task_id, format_task_prompt(task)
-                )
-            except Exception as e:
-                log.exception("Task %s failed with exception", task.task_id)
-                status = "failed"
-                screenshot_path = ""
-                error = str(e)
+        try:
+            results = []
+            for task in tasks:
+                log.info("--- Task %s: %s ---", task.task_id, task.url)
+                try:
+                    status, screenshot_path, error = await run_task(
+                        runner, task.task_id, format_task_prompt(task)
+                    )
+                except Exception as e:
+                    log.exception("Task %s failed with exception", task.task_id)
+                    status = "failed"
+                    screenshot_path = ""
+                    error = str(e)
 
-            update_task_result(xlsx_path, task.task_id, screenshot_path, status, error)
-            results.append((task.task_id, status, error))
-            log.info("Task %s: %s %s", task.task_id, status, f"({error})" if error else "")
+                update_task_result(xlsx_path, task.task_id, screenshot_path, status, error)
+                results.append((task.task_id, status, error))
+                log.info("Task %s: %s %s", task.task_id, status, f"({error})" if error else "")
 
-        # Print summary
-        print(f"\n{'='*60}")
-        print("RUN SUMMARY")
-        print(f"{'='*60}")
-        for tid, s, e in results:
-            label = "OK" if s == "success" else "FAIL"
-            print(f"  [{label}] {tid}: {s}" + (f" -- {e}" if e else ""))
-        print(f"{'='*60}")
-        passed = sum(1 for _, s, _ in results if s == "success")
-        print(f"  {passed}/{len(results)} tasks succeeded.")
-
-        await runner.close()
+            # Print summary
+            print(f"\n{'='*60}")
+            print("RUN SUMMARY")
+            print(f"{'='*60}")
+            for tid, s, e in results:
+                label = "OK" if s == "success" else "FAIL"
+                print(f"  [{label}] {tid}: {s}" + (f" -- {e}" if e else ""))
+            print(f"{'='*60}")
+            passed = sum(1 for _, s, _ in results if s == "success")
+            print(f"  {passed}/{len(results)} tasks succeeded.")
+        finally:
+            await runner.close()
 
     finally:
         log.info("Shutting down Chrome...")
         chrome_proc.terminate()
-        chrome_proc.wait(timeout=10)
+        try:
+            chrome_proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            log.warning("Chrome did not exit after terminate(); killing process.")
+            chrome_proc.kill()
+            chrome_proc.wait(timeout=5)
 
 
 def main():
