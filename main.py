@@ -112,9 +112,12 @@ async def run_task(
     error = ""
     last_function_call_id = None
     last_function_call_name = None
+    auth_attempts = 0
+    max_auth_attempts = 5
 
     message = types.Content(role="user", parts=[types.Part(text=prompt)])
 
+    # Outer loop handles auth pause/resume; inner async-for processes agent events
     while True:
         async for event in runner.run_async(
             user_id="human",
@@ -154,8 +157,13 @@ async def run_task(
                         await asyncio.to_thread(input)
                 break  # Exit event loop to resume
 
-        # If we paused for auth, resume
+        # If we paused for auth, resume (with max attempt guard)
         if last_function_call_id:
+            auth_attempts += 1
+            if auth_attempts > max_auth_attempts:
+                error = f"Too many auth attempts ({max_auth_attempts})"
+                log.error(error)
+                break
             message = types.Content(
                 role="user",
                 parts=[

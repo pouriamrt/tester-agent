@@ -44,7 +44,7 @@ def request_human_auth(description: str) -> dict:
     return {"status": "pending", "message": description}
 
 
-def mark_task_complete(status: str, summary: str, tool_context) -> dict:
+def mark_task_complete(status: str, summary: str, tool_context) -> dict:  # noqa: ANN001 -- injected by ADK FunctionTool
     """Mark the current task as complete and exit the retry loop.
 
     Args:
