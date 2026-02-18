@@ -222,6 +222,12 @@ async def async_main():
 
     log.info("Found %d pending task(s).", len(tasks))
 
+    # Clear pics folder
+    if PICS_DIR.exists():
+        shutil.rmtree(PICS_DIR)
+        log.info("Cleared %s directory.", PICS_DIR)
+    PICS_DIR.mkdir(exist_ok=True)
+
     # Launch Chrome
     chrome_proc = launch_chrome(CDP_PORT)
 
