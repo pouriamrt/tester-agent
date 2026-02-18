@@ -19,6 +19,11 @@ def read_tasks(path: str | Path) -> list[Task]:
     ws = wb.active
     headers = [cell.value for cell in ws[1]]
 
+    required = ("task_id", "url", "instructions")
+    missing = [c for c in required if c not in headers]
+    if missing:
+        raise ValueError(f"Missing required columns in {path}: {missing}")
+
     task_id_col = headers.index("task_id")
     url_col = headers.index("url")
     instructions_col = headers.index("instructions")
@@ -26,12 +31,14 @@ def read_tasks(path: str | Path) -> list[Task]:
 
     tasks = []
     for row in ws.iter_rows(min_row=2, values_only=True):
+        if row[task_id_col] is None:
+            continue
         if status_col is not None and row[status_col] == "success":
             continue
         tasks.append(Task(
             task_id=str(row[task_id_col]),
-            url=str(row[url_col]),
-            instructions=str(row[instructions_col]),
+            url=str(row[url_col] or ""),
+            instructions=str(row[instructions_col] or ""),
         ))
     return tasks
 
@@ -65,5 +72,7 @@ def update_task_result(
             ws.cell(row=row[0].row, column=status_col, value=status)
             ws.cell(row=row[0].row, column=error_col, value=error)
             break
+    else:
+        raise ValueError(f"Task ID '{task_id}' not found in {path}")
 
     wb.save(path)

@@ -1,7 +1,6 @@
 # tests/test_excel_io.py
-import os
 import pytest
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from excel_io import Task, read_tasks, update_task_result
 
 
@@ -46,7 +45,6 @@ def test_read_tasks_skips_completed(xlsx_with_results):
 
 def test_update_task_result_adds_columns(sample_xlsx):
     update_task_result(sample_xlsx, "T001", "pics/T001_123.png", "success", "")
-    from openpyxl import load_workbook
     wb = load_workbook(sample_xlsx)
     ws = wb.active
     headers = [cell.value for cell in ws[1]]
@@ -61,7 +59,6 @@ def test_update_task_result_adds_columns(sample_xlsx):
 
 def test_update_task_result_writes_error(sample_xlsx):
     update_task_result(sample_xlsx, "T002", "", "failed", "Element not found")
-    from openpyxl import load_workbook
     wb = load_workbook(sample_xlsx)
     ws = wb.active
     headers = [cell.value for cell in ws[1]]
@@ -72,10 +69,14 @@ def test_update_task_result_writes_error(sample_xlsx):
 
 def test_update_existing_result_columns(xlsx_with_results):
     update_task_result(xlsx_with_results, "T002", "pics/T002_456.png", "success", "")
-    from openpyxl import load_workbook
     wb = load_workbook(xlsx_with_results)
     ws = wb.active
     headers = [cell.value for cell in ws[1]]
     row3 = [cell.value for cell in ws[3]]
     assert row3[headers.index("screenshot_link")] == "pics/T002_456.png"
     assert row3[headers.index("status")] == "success"
+
+
+def test_update_task_result_raises_on_missing_id(sample_xlsx):
+    with pytest.raises(ValueError, match="Task ID 'NONEXISTENT' not found"):
+        update_task_result(sample_xlsx, "NONEXISTENT", "", "failed", "not found")
