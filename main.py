@@ -145,8 +145,8 @@ async def run_task(
     runner: Runner,
     task_id: str,
     prompt: str,
-) -> tuple[str, str]:
-    """Run a single task through the agent. Returns (status, error)."""
+) -> tuple[str, str, str]:
+    """Run a single task through the agent. Returns (status, error, explanation)."""
     session = await runner.session_service.create_session(
         app_name=APP_NAME,
         user_id="human",
@@ -155,6 +155,7 @@ async def run_task(
 
     status = "failed"
     error = ""
+    explanation = ""
     last_function_call_id = None
     last_function_call_name = None
     auth_attempts = 0
@@ -173,7 +174,8 @@ async def run_task(
             for fr in event.get_function_responses():
                 if fr.name == "mark_task_complete" and fr.response:
                     status = fr.response.get("status", "failed")
-                    error = fr.response.get("summary", "") if status == "failed" else ""
+                    explanation = fr.response.get("summary", "")
+                    error = explanation if status == "failed" else ""
 
             # Check for auth pause (LongRunningFunctionTool)
             if event.long_running_tool_ids:
@@ -216,7 +218,7 @@ async def run_task(
         # No pause -- agent finished (or loop exhausted)
         break
 
-    return status, error
+    return status, error, explanation
 
 
 def format_task_prompt(task) -> str:
@@ -272,17 +274,18 @@ async def async_main():
                 log.info("--- Task %s: %s ---", task.task_id, task.url)
                 png_before = snapshot_png_files()
                 try:
-                    status, error = await run_task(
+                    status, error, explanation = await run_task(
                         runner, task.task_id, format_task_prompt(task)
                     )
                 except Exception as e:
                     log.exception("Task %s failed with exception", task.task_id)
                     status = "failed"
                     error = str(e)
+                    explanation = ""
 
                 screenshot_path = collect_screenshots(task.task_id, png_before)
 
-                update_task_result(xlsx_path, task.task_id, screenshot_path, status, error)
+                update_task_result(xlsx_path, task.task_id, screenshot_path, status, error, explanation)
                 results.append((task.task_id, status, error))
                 log.info("Task %s: %s %s", task.task_id, status, f"({error})" if error else "")
 

@@ -49,6 +49,7 @@ def update_task_result(
     screenshot_link: str,
     status: str,
     error: str,
+    explanation: str = "",
 ) -> None:
     """Write task results back to the Excel file."""
     wb = load_workbook(path)
@@ -56,7 +57,7 @@ def update_task_result(
     headers = [cell.value for cell in ws[1]]
 
     # Add result columns if missing
-    for col_name in ("screenshot_link", "status", "error"):
+    for col_name in ("screenshot_link", "status", "error", "explanation"):
         if col_name not in headers:
             headers.append(col_name)
             ws.cell(row=1, column=len(headers), value=col_name)
@@ -65,12 +66,14 @@ def update_task_result(
     ss_col = headers.index("screenshot_link") + 1  # openpyxl is 1-indexed
     status_col = headers.index("status") + 1
     error_col = headers.index("error") + 1
+    explanation_col = headers.index("explanation") + 1
 
     for row in ws.iter_rows(min_row=2):
         if str(row[task_id_col].value) == task_id:
             ws.cell(row=row[0].row, column=ss_col, value=screenshot_link)
             ws.cell(row=row[0].row, column=status_col, value=status)
             ws.cell(row=row[0].row, column=error_col, value=error)
+            ws.cell(row=row[0].row, column=explanation_col, value=explanation)
             break
     else:
         raise ValueError(f"Task ID '{task_id}' not found in {path}")
