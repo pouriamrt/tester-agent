@@ -40,6 +40,7 @@ def resolve_model_string() -> str:
     return f"{provider}/{name}"
 
 PICS_DIR = Path("pics")
+AUDIO_DIR = Path("audio")
 APP_NAME = "tester_agent"
 CDP_PORT = 9222
 CDP_ENDPOINT = f"http://localhost:{CDP_PORT}"
@@ -139,6 +140,27 @@ def collect_screenshots(task_id: str, before: dict[Path, float]) -> str:
         saved.append(str(dest))
 
     return ", ".join(saved)
+
+
+def collect_audio(task_id: str, b64_wav: str | None) -> str:
+    """Decode a base64 WAV string and save to audio/ directory. Returns saved path or empty string."""
+    if not b64_wav:
+        return ""
+
+    import base64
+
+    AUDIO_DIR.mkdir(exist_ok=True)
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    dest = AUDIO_DIR / f"{task_id}_{timestamp}.wav"
+
+    try:
+        wav_bytes = base64.b64decode(b64_wav)
+        dest.write_bytes(wav_bytes)
+        log.info("Audio saved: %s (%d bytes)", dest, len(wav_bytes))
+        return str(dest)
+    except Exception as e:
+        log.warning("Failed to save audio for task %s: %s", task_id, e)
+        return ""
 
 
 async def run_task(
