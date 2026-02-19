@@ -64,6 +64,17 @@ def launch_chrome(port: int) -> subprocess.Popen:
         log.error("Chrome not found. Set CHROME_PATH environment variable.")
         sys.exit(1)
 
+    # Fake media device flags: allow getUserMedia() without real mic/camera
+    fake_media_flags = [
+        "--use-fake-device-for-media-stream",
+        "--use-fake-ui-for-media-stream",
+        "--auto-accept-camera-and-microphone-capture",
+    ]
+    fake_audio_file = os.environ.get("FAKE_AUDIO_FILE", "").strip()
+    if fake_audio_file:
+        fake_media_flags.append(f"--use-file-for-fake-audio-capture={fake_audio_file}")
+        log.info("Using fake audio file: %s", fake_audio_file)
+
     log.info("Launching Chrome with --remote-debugging-port=%d", port)
     proc = subprocess.Popen(
         [
@@ -72,6 +83,7 @@ def launch_chrome(port: int) -> subprocess.Popen:
             "--no-first-run",
             "--no-default-browser-check",
             "--user-data-dir=" + str(Path.home() / ".tester-agent-chrome-profile"),
+            *fake_media_flags,
         ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,

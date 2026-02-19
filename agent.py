@@ -17,6 +17,12 @@ TASK_INSTRUCTION = """You are a web task automation agent. You execute tasks on 
 4. **Take a screenshot** after completing the instructions using Chrome DevTools `take_screenshot` tool.
 5. **Report completion** by calling `mark_task_complete` with status "success" and a brief summary.
 
+## Audio / microphone testing:
+Chrome is launched with fake media device flags, so `getUserMedia()` works without a real microphone. If the task involves audio or microphone testing:
+1. Call `inject_fake_audio` to get a JavaScript snippet that overrides `getUserMedia` with a synthetic audio stream (configurable frequency and duration).
+2. Execute the returned JS using Playwright's `browser_evaluate` tool BEFORE clicking any "start recording" or "allow microphone" buttons.
+3. Then interact with the page normally -- the app will receive the fake audio stream.
+
 ## Error handling:
 - If a step fails, try an alternative approach (different selector, waiting longer, etc.).
 - If you cannot complete the task after reasonable attempts, call `mark_task_complete` with status "failed" and a clear error description.
@@ -42,6 +48,47 @@ def request_human_auth(description: str) -> dict:
         Status dict. When status is "authenticated", you may continue.
     """
     return {"status": "pending", "message": description}
+
+
+def inject_fake_audio(frequency: float = 440.0, duration: float = 10.0) -> dict:
+    """Get JavaScript code that injects a synthetic audio tone into the page.
+
+    Call this when a task involves microphone or audio input testing. Execute the
+    returned JS via Playwright's browser_evaluate BEFORE the page requests mic access.
+
+    The script overrides navigator.mediaDevices.getUserMedia so that any audio
+    request returns a MediaStream driven by a Web Audio OscillatorNode.
+
+    Args:
+        frequency: Tone frequency in Hz (default 440 = A4 note). Use 0 for silence.
+        duration: How long the tone plays in seconds (default 10).
+
+    Returns:
+        Dict with 'js' key containing the JavaScript code to execute via browser_evaluate.
+    """
+    js_code = (
+        "(()=>{"
+        "const ctx=new AudioContext();"
+        "const osc=ctx.createOscillator();"
+        f"osc.frequency.setValueAtTime({frequency},ctx.currentTime);"
+        "const dest=ctx.createMediaStreamDestination();"
+        "osc.connect(dest);osc.start();"
+        f"setTimeout(()=>osc.stop(),{int(duration*1000)});"
+        "const orig=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);"
+        "navigator.mediaDevices.getUserMedia=async(c)=>{"
+        "if(c&&c.audio){const s=dest.stream;"
+        "if(c.video){const v=await orig({video:c.video});"
+        "v.getAudioTracks().forEach(t=>s.addTrack(t));return s;}"
+        "return s;}return orig(c);};"
+        "return 'Audio injection active';})()"
+    )
+    return {
+        "js": js_code,
+        "instruction": (
+            "Execute this JS via browser_evaluate to inject fake audio. "
+            "Do this BEFORE the page calls getUserMedia (before clicking record/call buttons)."
+        ),
+    }
 
 
 def mark_task_complete(status: str, summary: str, tool_context) -> dict:  # noqa: ANN001 -- injected by ADK FunctionTool
@@ -93,12 +140,13 @@ def build_agent(
 
     auth_tool = LongRunningFunctionTool(func=request_human_auth)
     complete_tool = FunctionTool(func=mark_task_complete)
+    audio_tool = FunctionTool(func=inject_fake_audio)
 
     task_executor = Agent(
         name="task_executor",
         model=model,
         instruction=TASK_INSTRUCTION,
-        tools=[playwright_toolset, chrome_devtools_toolset, auth_tool, complete_tool],
+        tools=[playwright_toolset, chrome_devtools_toolset, auth_tool, complete_tool, audio_tool],
     )
 
     loop_agent = LoopAgent(

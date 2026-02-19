@@ -34,11 +34,12 @@ uv run pytest tests/test_excel_io.py::test_read_tasks_returns_all_rows -v
 
 1. **Orchestrator** (`main.py`): Launches Chrome with `--remote-debugging-port=9222`, iterates over tasks from Excel, runs each through the ADK agent, collects screenshots from disk (new `.png` files in project root), moves them to `pics/`, and updates the spreadsheet. Handles the human-in-the-loop auth pause/resume cycle via ADK's `LongRunningFunctionTool` events.
 
-2. **Agent** (`agent.py`): A `LoopAgent` (max 3 retries) wrapping an `LlmAgent` named `task_executor`. The executor has four tools:
+2. **Agent** (`agent.py`): A `LoopAgent` (max 3 retries) wrapping an `LlmAgent` named `task_executor`. The executor has five tools:
    - `McpToolset` for **Playwright MCP** -- browser navigation, clicking, typing, form filling
    - `McpToolset` for **Chrome DevTools MCP** -- `take_screenshot` for full-page captures
    - `LongRunningFunctionTool(request_human_auth)` -- pauses execution for manual login/2FA
    - `FunctionTool(mark_task_complete)` -- signals success/failure and escalates to exit the LoopAgent
+   - `FunctionTool(inject_fake_audio)` -- returns JS to override `getUserMedia` with a synthetic audio stream for mic testing
 
 3. **Excel I/O** (`excel_io.py`): Reads `Task(task_id, url, instructions)` rows from `tasks.xlsx`, skips rows already marked `status=success` (re-run support). Writes results back by adding/updating `screenshot_link`, `status`, `error` columns.
 
@@ -67,8 +68,17 @@ uv run pytest tests/test_excel_io.py::test_read_tasks_returns_all_rows -v
 | `VERTEXAI_LOCATION` | If vertex_ai | GCP region (e.g. `us-central1`) |
 | `GOOGLE_API_KEY` | If google | Google AI API key for native Gemini |
 | `CHROME_PATH` | No | Custom Chrome executable path |
+| `FAKE_AUDIO_FILE` | No | Path to a WAV file for fake mic input (omit for synthetic beep tone) |
 
 Copy `.env.example` to `.env` and fill in values.
+
+## Audio / Microphone Testing
+
+Chrome is launched with `--use-fake-device-for-media-stream` and related flags, so `getUserMedia()` works without a real microphone. Two levels of control:
+
+1. **Static (Chrome flags):** Always active. Set `FAKE_AUDIO_FILE` to a WAV path to feed specific audio, or leave empty for a synthetic beep tone. The permission popup is auto-accepted.
+
+2. **Dynamic (inject_fake_audio tool):** The agent calls `inject_fake_audio(frequency, duration)` which returns JavaScript code. The agent then executes it via Playwright's `browser_evaluate` *before* the page requests mic access. This overrides `getUserMedia` to return a `MediaStream` from a Web Audio `OscillatorNode`.
 
 ## External Dependencies
 
