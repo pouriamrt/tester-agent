@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Web task automation agent built on **Google ADK** (Agent Development Kit). Reads tasks from an Excel spreadsheet, drives Chrome via two MCP toolsets (Playwright for interaction, Chrome DevTools for screenshots), and writes results back to the spreadsheet. Uses an LLM (OpenAI GPT-5.2 via LiteLLM) as the decision-making engine inside the agent.
+Web task automation agent built on **Google ADK** (Agent Development Kit). Reads tasks from an Excel spreadsheet, drives Chrome via two MCP toolsets (Playwright for interaction, Chrome DevTools for screenshots), and writes results back to the spreadsheet. Uses a configurable LLM (default: OpenAI GPT-5.2 via LiteLLM) as the decision-making engine inside the agent. Supports OpenAI, Vertex AI (Google's enterprise Gemini), and native Google Gemini as providers.
 
 ## Commands
 
@@ -12,8 +12,11 @@ Web task automation agent built on **Google ADK** (Agent Development Kit). Reads
 # Install dependencies (requires Python 3.13+ and uv)
 uv sync --all-extras
 
-# Run the agent (requires tasks.xlsx, Chrome, Node.js/npx, and OPENAI_API_KEY in .env)
+# Run the agent (requires tasks.xlsx, Chrome, Node.js/npx, and an LLM API key in .env)
 uv run python main.py
+
+# Install with Vertex AI support
+uv sync --extra vertex
 
 # Generate a sample tasks.xlsx
 uv run python create_sample_xlsx.py
@@ -47,7 +50,7 @@ uv run pytest tests/test_excel_io.py::test_read_tasks_returns_all_rows -v
 
 ## Key Conventions
 
-- The LLM model is configured in `agent.py:build_agent()` (currently `openai/gpt-5.2` via LiteLLM). Changing the model only requires editing this one location.
+- The LLM model is configured via `MODEL_PROVIDER` and `MODEL_NAME` env vars. `main.py:resolve_model_string()` builds the ADK model string and passes it to `build_agent()`. Supported providers: `openai` (default), `vertex_ai`, `google` (native Gemini).
 - `mark_task_complete` uses `tool_context.actions.escalate = True` to break out of the LoopAgent -- this is an ADK-specific pattern, not a general Python concept.
 - Chrome uses a dedicated user profile at `~/.tester-agent-chrome-profile` to persist login sessions across runs.
 - The `pics/` directory is cleared at the start of each run.
@@ -57,7 +60,12 @@ uv run pytest tests/test_excel_io.py::test_read_tasks_returns_all_rows -v
 
 | Variable | Required | Description |
 |---|---|---|
-| `OPENAI_API_KEY` | Yes | OpenAI API key (used by LiteLLM) |
+| `MODEL_PROVIDER` | No | LLM provider: `openai` (default), `vertex_ai`, or `google` |
+| `MODEL_NAME` | No | Model name (default: `gpt-5.2`). Examples: `gemini-2.5-flash`, `gpt-5.2` |
+| `OPENAI_API_KEY` | If openai | OpenAI API key (used by LiteLLM) |
+| `VERTEXAI_PROJECT` | If vertex_ai | GCP project ID for Vertex AI |
+| `VERTEXAI_LOCATION` | If vertex_ai | GCP region (e.g. `us-central1`) |
+| `GOOGLE_API_KEY` | If google | Google AI API key for native Gemini |
 | `CHROME_PATH` | No | Custom Chrome executable path |
 
 Copy `.env.example` to `.env` and fill in values.

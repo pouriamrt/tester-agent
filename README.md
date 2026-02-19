@@ -25,9 +25,12 @@ Requires Python 3.13+, Node.js (for `npx`), and Chrome installed.
 # Install dependencies
 uv sync
 
+# For Vertex AI support, also install the vertex extra
+uv sync --extra vertex
+
 # Create .env with your API key
 cp .env.example .env
-# Edit .env and set OPENAI_API_KEY
+# Edit .env and set your LLM provider + API key
 ```
 
 ## Usage
@@ -61,7 +64,12 @@ docs/plans/           Design and implementation docs
 
 | Variable | Description |
 |---|---|
-| `OPENAI_API_KEY` | OpenAI API key (required) |
+| `MODEL_PROVIDER` | LLM provider: `openai` (default), `vertex_ai`, or `google` |
+| `MODEL_NAME` | Model name (default: `gpt-5.2`). Examples: `gemini-2.5-flash` |
+| `OPENAI_API_KEY` | OpenAI API key (when using `openai` provider) |
+| `VERTEXAI_PROJECT` | GCP project ID (when using `vertex_ai` provider) |
+| `VERTEXAI_LOCATION` | GCP region, e.g. `us-central1` (when using `vertex_ai` provider) |
+| `GOOGLE_API_KEY` | Google AI API key (when using `google` provider) |
 | `CHROME_PATH` | Custom Chrome executable path (optional) |
 
-The agent model is set in `agent.py` (default: `openai/gpt-5.2` via LiteLLM).
+The model string is built from `MODEL_PROVIDER` / `MODEL_NAME` and routed through ADK's LLMRegistry. For Vertex AI, install the extra: `uv sync --extra vertex`.

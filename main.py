@@ -29,6 +29,16 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
+
+def resolve_model_string() -> str:
+    """Build the ADK model string from MODEL_PROVIDER and MODEL_NAME env vars."""
+    provider = os.environ.get("MODEL_PROVIDER", "openai").strip().lower()
+    name = os.environ.get("MODEL_NAME", "gpt-5.2").strip()
+    # Native Gemini SDK: bare model name, no prefix
+    if provider == "google":
+        return name
+    return f"{provider}/{name}"
+
 PICS_DIR = Path("pics")
 APP_NAME = "tester_agent"
 CDP_PORT = 9222
@@ -233,7 +243,9 @@ async def async_main():
 
     try:
         # Build agent and runner
-        agent = build_agent(CDP_ENDPOINT)
+        model_string = resolve_model_string()
+        log.info("Using model: %s", model_string)
+        agent = build_agent(CDP_ENDPOINT, model=model_string)
         app = App(
             name=APP_NAME,
             root_agent=agent,

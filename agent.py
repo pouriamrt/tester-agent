@@ -58,11 +58,15 @@ def mark_task_complete(status: str, summary: str, tool_context) -> dict:  # noqa
     return {"status": status, "summary": summary}
 
 
-def build_agent(cdp_endpoint: str = "http://localhost:9222") -> LoopAgent:
+def build_agent(
+    cdp_endpoint: str = "http://localhost:9222",
+    model: str = "openai/gpt-5.2",
+) -> LoopAgent:
     """Build the LoopAgent with task executor sub-agent.
 
     Args:
         cdp_endpoint: CDP endpoint URL for connecting to Chrome.
+        model: LLM model string for ADK (e.g. "openai/gpt-5.2", "vertex_ai/gemini-2.5-flash").
 
     Returns:
         LoopAgent wrapping the task executor.
@@ -92,7 +96,7 @@ def build_agent(cdp_endpoint: str = "http://localhost:9222") -> LoopAgent:
 
     task_executor = Agent(
         name="task_executor",
-        model="openai/gpt-5.2",
+        model=model,
         instruction=TASK_INSTRUCTION,
         tools=[playwright_toolset, chrome_devtools_toolset, auth_tool, complete_tool],
     )
