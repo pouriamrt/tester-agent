@@ -28,6 +28,15 @@ Chrome is launched with fake media device flags, so `getUserMedia()` works witho
 - If you cannot complete the task after reasonable attempts, call `mark_task_complete` with status "failed" and a clear error description.
 - Always attempt to take a screenshot before reporting failure.
 
+## Audio capture (recording page audio output):
+If the task involves a website that plays audio (music, speech, notifications, sound effects):
+1. Call `start_audio_capture` to get JS that hooks the page's audio output.
+2. Execute the returned JS via Playwright's `browser_evaluate` BEFORE audio starts playing.
+3. Let the page play audio normally while you complete other task steps.
+4. When done (before calling mark_task_complete), call `stop_audio_capture` to get JS that finalizes the recording.
+5. Execute that JS via `browser_evaluate` -- it encodes the recording as base64 WAV.
+The orchestrator will automatically save the audio file.
+
 ## Important rules:
 - Do NOT ask the human for help except via `request_human_auth` for login/2FA.
 - Use `browser_snapshot` to understand page structure before interacting with elements.
@@ -270,12 +279,14 @@ def build_agent(
     auth_tool = LongRunningFunctionTool(func=request_human_auth)
     complete_tool = FunctionTool(func=mark_task_complete)
     audio_tool = FunctionTool(func=inject_fake_audio)
+    audio_capture_start_tool = FunctionTool(func=start_audio_capture)
+    audio_capture_stop_tool = FunctionTool(func=stop_audio_capture)
 
     task_executor = Agent(
         name="task_executor",
         model=model,
         instruction=TASK_INSTRUCTION,
-        tools=[playwright_toolset, chrome_devtools_toolset, auth_tool, complete_tool, audio_tool],
+        tools=[playwright_toolset, chrome_devtools_toolset, auth_tool, complete_tool, audio_tool, audio_capture_start_tool, audio_capture_stop_tool],
     )
 
     loop_agent = LoopAgent(

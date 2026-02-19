@@ -32,3 +32,9 @@ def test_stop_audio_capture_js_encodes_wav():
     assert "RIFF" in js  # WAV header magic bytes
     assert "WAVE" in js
     assert "btoa" in js  # base64 encoding
+
+
+def test_task_instruction_mentions_audio_capture():
+    from agent import TASK_INSTRUCTION
+    assert "start_audio_capture" in TASK_INSTRUCTION
+    assert "stop_audio_capture" in TASK_INSTRUCTION
