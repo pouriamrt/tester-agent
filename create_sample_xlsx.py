@@ -18,5 +18,15 @@ ws.append([
         "select 'medium' pizza size, check 'bacon' topping, and submit the form."
     ),
 ])
+ws.append([
+    "T003",
+    "https://mictests.com/",
+    (
+        "Click the 'Test my mic' button to start the microphone test. "
+        "Wait for the audio visualization to appear (waveform or volume bars moving). "
+        "Verify that the page detects audio input and shows a result like 'Microphone is working'. "
+        "Take a screenshot showing the test result."
+    ),
+])
 wb.save("tasks.xlsx")
-print("Created tasks.xlsx with 2 sample tasks.")
+print("Created tasks.xlsx with 3 sample tasks.")
