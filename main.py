@@ -68,7 +68,6 @@ def launch_chrome(port: int) -> subprocess.Popen:
     fake_media_flags = [
         "--use-fake-device-for-media-stream",
         "--use-fake-ui-for-media-stream",
-        "--auto-accept-camera-and-microphone-capture",
     ]
     fake_audio_file = os.environ.get("FAKE_AUDIO_FILE", "").strip()
     if fake_audio_file:
