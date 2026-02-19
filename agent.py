@@ -91,6 +91,60 @@ def inject_fake_audio(frequency: float = 440.0, duration: float = 10.0) -> dict:
     }
 
 
+def start_audio_capture() -> dict:
+    """Get JavaScript code that starts capturing audio output from the page.
+
+    Call this when a task involves a website that plays audio. Execute the
+    returned JS via Playwright's browser_evaluate BEFORE audio starts playing.
+
+    The script intercepts audio from <audio>/<video> elements and Web Audio API,
+    recording raw PCM data into window.__audioCapture.
+
+    Returns:
+        Dict with 'js' key containing the JavaScript code to execute via browser_evaluate,
+        and 'instruction' key with usage guidance.
+    """
+    js_code = """(()=>{
+if(window.__audioCapture&&window.__audioCapture.active){return 'Audio capture already active';}
+const ctx=new (window.AudioContext||window.webkitAudioContext)();
+const dest=ctx.createMediaStreamDestination();
+const chunks=[];
+const processor=ctx.createScriptProcessor(4096,2,2);
+dest.stream.getAudioTracks().forEach(t=>{
+const src=ctx.createMediaStreamSource(new MediaStream([t]));
+src.connect(processor);
+});
+processor.onaudioprocess=function(e){
+const L=new Float32Array(e.inputBuffer.getChannelData(0));
+const R=e.inputBuffer.numberOfChannels>1?new Float32Array(e.inputBuffer.getChannelData(1)):L;
+chunks.push({left:L,right:R});
+};
+processor.connect(ctx.destination);
+const origPlay=HTMLMediaElement.prototype.play;
+HTMLMediaElement.prototype.play=function(){
+try{
+if(!this.__audioCaptureConnected){
+const source=ctx.createMediaElementSource(this);
+source.connect(dest);
+source.connect(ctx.destination);
+this.__audioCaptureConnected=true;
+}
+}catch(e){}
+return origPlay.apply(this,arguments);
+};
+window.__audioCapture={active:true,ctx:ctx,dest:dest,processor:processor,chunks:chunks,origPlay:origPlay,sampleRate:ctx.sampleRate};
+return 'Audio capture started at '+ctx.sampleRate+'Hz';
+})()"""
+    return {
+        "js": js_code,
+        "instruction": (
+            "Execute this JS via browser_evaluate to start capturing tab audio. "
+            "Do this BEFORE audio starts playing on the page. "
+            "Call stop_audio_capture when done to retrieve the recorded WAV data."
+        ),
+    }
+
+
 def mark_task_complete(status: str, summary: str, tool_context) -> dict:  # noqa: ANN001 -- injected by ADK FunctionTool
     """Mark the current task as complete and exit the retry loop.
 
