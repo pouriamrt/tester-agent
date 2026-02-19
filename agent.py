@@ -145,6 +145,81 @@ return 'Audio capture started at '+ctx.sampleRate+'Hz';
     }
 
 
+def stop_audio_capture() -> dict:
+    """Get JavaScript code that stops audio capture and returns WAV data.
+
+    Call this after the page has finished playing audio. Execute the returned JS
+    via Playwright's browser_evaluate. The result will be a base64-encoded WAV
+    string stored on window.__audioCaptureResult.
+
+    Returns:
+        Dict with 'js' key containing the JavaScript code to execute via browser_evaluate,
+        and 'instruction' key with usage guidance.
+    """
+    js_code = """(()=>{
+if(!window.__audioCapture||!window.__audioCapture.active){return JSON.stringify({error:'No active audio capture'});}
+const cap=window.__audioCapture;
+cap.processor.disconnect();
+HTMLMediaElement.prototype.play=cap.origPlay;
+cap.active=false;
+const chunks=cap.chunks;
+if(chunks.length===0){
+window.__audioCaptureResult='';
+return JSON.stringify({status:'stopped',samples:0,audio:''});
+}
+const sampleRate=cap.sampleRate;
+const numChannels=2;
+const bitsPerSample=16;
+let totalSamples=0;
+for(let i=0;i<chunks.length;i++){totalSamples+=chunks[i].left.length;}
+const dataSize=totalSamples*numChannels*(bitsPerSample/8);
+const buffer=new ArrayBuffer(44+dataSize);
+const view=new DataView(buffer);
+function writeStr(offset,str){for(let i=0;i<str.length;i++){view.setUint8(offset+i,str.charCodeAt(i));}}
+writeStr(0,'RIFF');
+view.setUint32(4,36+dataSize,true);
+writeStr(8,'WAVE');
+writeStr(12,'fmt ');
+view.setUint32(16,16,true);
+view.setUint16(20,1,true);
+view.setUint16(22,numChannels,true);
+view.setUint32(24,sampleRate,true);
+view.setUint32(28,sampleRate*numChannels*(bitsPerSample/8),true);
+view.setUint16(32,numChannels*(bitsPerSample/8),true);
+view.setUint16(34,bitsPerSample,true);
+writeStr(36,'data');
+view.setUint32(40,dataSize,true);
+let offset=44;
+for(let i=0;i<chunks.length;i++){
+const L=chunks[i].left;
+const R=chunks[i].right;
+for(let j=0;j<L.length;j++){
+const lSample=Math.max(-1,Math.min(1,L[j]));
+view.setInt16(offset,lSample<0?lSample*0x8000:lSample*0x7FFF,true);
+offset+=2;
+const rSample=Math.max(-1,Math.min(1,R[j]));
+view.setInt16(offset,rSample<0?rSample*0x8000:rSample*0x7FFF,true);
+offset+=2;
+}
+}
+const bytes=new Uint8Array(buffer);
+let binary='';
+for(let i=0;i<bytes.length;i++){binary+=String.fromCharCode(bytes[i]);}
+const b64=btoa(binary);
+window.__audioCaptureResult=b64;
+const durationSec=totalSamples/sampleRate;
+return JSON.stringify({status:'stopped',samples:totalSamples,duration_sec:durationSec,size_bytes:buffer.byteLength,audio:b64.substring(0,50)+'...'});
+})()"""
+    return {
+        "js": js_code,
+        "instruction": (
+            "Execute this JS via browser_evaluate to stop audio capture and encode as WAV. "
+            "The base64-encoded WAV is stored on window.__audioCaptureResult. "
+            "The orchestrator will automatically collect and save it."
+        ),
+    }
+
+
 def mark_task_complete(status: str, summary: str, tool_context) -> dict:  # noqa: ANN001 -- injected by ADK FunctionTool
     """Mark the current task as complete and exit the retry loop.
 
