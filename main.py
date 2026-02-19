@@ -71,8 +71,9 @@ def launch_chrome(port: int) -> subprocess.Popen:
     ]
     fake_audio_file = os.environ.get("FAKE_AUDIO_FILE", "").strip()
     if fake_audio_file:
-        fake_media_flags.append(f"--use-file-for-fake-audio-capture={fake_audio_file}")
-        log.info("Using fake audio file: %s", fake_audio_file)
+        fake_audio_path = str(Path(fake_audio_file).resolve())
+        fake_media_flags.append(f"--use-file-for-fake-audio-capture={fake_audio_path}")
+        log.info("Using fake audio file: %s", fake_audio_path)
 
     log.info("Launching Chrome with --remote-debugging-port=%d", port)
     proc = subprocess.Popen(
