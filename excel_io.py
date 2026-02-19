@@ -50,6 +50,7 @@ def update_task_result(
     status: str,
     error: str,
     explanation: str = "",
+    audio_link: str = "",
 ) -> None:
     """Write task results back to the Excel file."""
     wb = load_workbook(path)
@@ -57,7 +58,7 @@ def update_task_result(
     headers = [cell.value for cell in ws[1]]
 
     # Add result columns if missing
-    for col_name in ("screenshot_link", "status", "error", "explanation"):
+    for col_name in ("screenshot_link", "status", "error", "explanation", "audio_link"):
         if col_name not in headers:
             headers.append(col_name)
             ws.cell(row=1, column=len(headers), value=col_name)
@@ -67,6 +68,7 @@ def update_task_result(
     status_col = headers.index("status") + 1
     error_col = headers.index("error") + 1
     explanation_col = headers.index("explanation") + 1
+    audio_col = headers.index("audio_link") + 1
 
     for row in ws.iter_rows(min_row=2):
         if str(row[task_id_col].value) == task_id:
@@ -74,6 +76,7 @@ def update_task_result(
             ws.cell(row=row[0].row, column=status_col, value=status)
             ws.cell(row=row[0].row, column=error_col, value=error)
             ws.cell(row=row[0].row, column=explanation_col, value=explanation)
+            ws.cell(row=row[0].row, column=audio_col, value=audio_link or "")
             break
     else:
         raise ValueError(f"Task ID '{task_id}' not found in {path}")
