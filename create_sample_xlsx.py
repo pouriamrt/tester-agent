@@ -28,5 +28,13 @@ ws.append([
         "Take a screenshot showing the test result."
     ),
 ])
+ws.append([
+    "T004",
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+    (
+        "Play the audio on this page and capture the audio output. "
+        "Verify audio plays for at least 3 seconds."
+    ),
+])
 wb.save("tasks.xlsx")
-print("Created tasks.xlsx with 3 sample tasks.")
+print("Created tasks.xlsx with 4 sample tasks.")
