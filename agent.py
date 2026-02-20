@@ -33,9 +33,10 @@ If the task involves a website that plays audio (music, speech, notifications, s
 1. Call `start_audio_capture` to get JS that hooks the page's audio output.
 2. Execute the returned JS via Playwright's `browser_evaluate` BEFORE audio starts playing.
 3. Let the page play audio normally while you complete other task steps.
-4. When done (before calling mark_task_complete), call `stop_audio_capture` to get JS that finalizes the recording.
+4. When done, call `stop_audio_capture` to get JS that finalizes the recording.
 5. Execute that JS via `browser_evaluate` -- it encodes the recording as base64 WAV.
-The orchestrator will automatically save the audio file.
+6. Read the base64 data: execute `window.__audioCaptureResult` via `browser_evaluate`.
+7. Pass the base64 string as the `audio_data` parameter when calling `mark_task_complete`.
 
 ## Important rules:
 - Do NOT ask the human for help except via `request_human_auth` for login/2FA.
