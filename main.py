@@ -167,8 +167,8 @@ async def run_task(
     runner: Runner,
     task_id: str,
     prompt: str,
-) -> tuple[str, str, str]:
-    """Run a single task through the agent. Returns (status, error, explanation)."""
+) -> tuple[str, str, str, str]:
+    """Run a single task through the agent. Returns (status, error, explanation, audio_b64)."""
     session = await runner.session_service.create_session(
         app_name=APP_NAME,
         user_id="human",
@@ -178,6 +178,7 @@ async def run_task(
     status = "failed"
     error = ""
     explanation = ""
+    audio_b64 = ""
     last_function_call_id = None
     last_function_call_name = None
     auth_attempts = 0
@@ -198,6 +199,7 @@ async def run_task(
                     status = fr.response.get("status", "failed")
                     explanation = fr.response.get("summary", "")
                     error = explanation if status == "failed" else ""
+                    audio_b64 = fr.response.get("audio_data", "")
 
             # Check for auth pause (LongRunningFunctionTool)
             if event.long_running_tool_ids:
@@ -240,7 +242,7 @@ async def run_task(
         # No pause -- agent finished (or loop exhausted)
         break
 
-    return status, error, explanation
+    return status, error, explanation, audio_b64
 
 
 def format_task_prompt(task) -> str:
@@ -274,6 +276,12 @@ async def async_main():
         log.info("Cleared %s directory.", PICS_DIR)
     PICS_DIR.mkdir(exist_ok=True)
 
+    # Clear audio folder
+    if AUDIO_DIR.exists():
+        shutil.rmtree(AUDIO_DIR)
+        log.info("Cleared %s directory.", AUDIO_DIR)
+    AUDIO_DIR.mkdir(exist_ok=True)
+
     # Launch Chrome
     chrome_proc = launch_chrome(CDP_PORT)
 
@@ -296,7 +304,7 @@ async def async_main():
                 log.info("--- Task %s: %s ---", task.task_id, task.url)
                 png_before = snapshot_png_files()
                 try:
-                    status, error, explanation = await run_task(
+                    status, error, explanation, audio_b64 = await run_task(
                         runner, task.task_id, format_task_prompt(task)
                     )
                 except Exception as e:
@@ -304,10 +312,12 @@ async def async_main():
                     status = "failed"
                     error = str(e)
                     explanation = ""
+                    audio_b64 = ""
 
                 screenshot_path = collect_screenshots(task.task_id, png_before)
+                audio_path = collect_audio(task.task_id, audio_b64)
 
-                update_task_result(xlsx_path, task.task_id, screenshot_path, status, error, explanation)
+                update_task_result(xlsx_path, task.task_id, screenshot_path, status, error, explanation, audio_link=audio_path)
                 results.append((task.task_id, status, error))
                 log.info("Task %s: %s %s", task.task_id, status, f"({error})" if error else "")
 

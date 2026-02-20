@@ -229,18 +229,19 @@ return JSON.stringify({status:'stopped',samples:totalSamples,duration_sec:durati
     }
 
 
-def mark_task_complete(status: str, summary: str, tool_context) -> dict:  # noqa: ANN001 -- injected by ADK FunctionTool
+def mark_task_complete(status: str, summary: str, tool_context, audio_data: str = "") -> dict:  # noqa: ANN001 -- injected by ADK FunctionTool
     """Mark the current task as complete and exit the retry loop.
 
     Args:
         status: "success" or "failed"
         summary: Brief description of what happened
+        audio_data: Optional base64-encoded WAV audio data from stop_audio_capture
 
     Returns:
-        The status and summary for the orchestrator.
+        The status, summary, and audio_data for the orchestrator.
     """
     tool_context.actions.escalate = True
-    return {"status": status, "summary": summary}
+    return {"status": status, "summary": summary, "audio_data": audio_data}
 
 
 def build_agent(
